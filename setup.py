@@ -34,6 +34,7 @@ setup(
     url='https://github.com/gatoDev/beaconscan',
     long_description=get_long_description(),
     py_modules=[package_name],
+    packages=['pexpect'],
     entry_points={
         'console_scripts': [
             'beacon = beacon:main'
