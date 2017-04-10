@@ -69,7 +69,6 @@ class Beacon:
         else:
             ratio=self.rssi*1.0/self.txPower;
             if ratio < 1.0:
-                #print ratio
                 return ratio ** 10;
             else:
                 acc =(0.89976) *( ratio ** 7.7095 )+0.111;
@@ -167,7 +166,6 @@ class Scanner:
         for i in range(0, loop_count):
             pkt = self.sock.recv(255)
             ptype, event, plen = struct.unpack("BBB", pkt[:3])
-            #print "--------------" 
             if event == bluez.EVT_INQUIRY_RESULT_WITH_RSSI:
                 i =0
             elif event == bluez.EVT_NUM_COMP_PKTS:
@@ -208,10 +206,10 @@ def worker_scan(scan):
         scan.start();
     except Exception as inst:
         scan.disable();
-        print "error en servicio de scan";
-        print type(inst);
-        print inst.args;
-        print inst;
+        print("error en servicio de scan");
+        print(type(inst));
+        print(inst.args);
+        print(inst);
 
 
 ################################################
@@ -296,21 +294,21 @@ def main():
             arg += 1
     except Exception as inst:          
         #print_help()
-        print type(inst);
-        print inst.args;
-        print inst;
-        print "error parse argumends"
+        print(type(inst));
+        print(inst.args);
+        print(inst);
+        print("error parse argumends")
         quit(None, 2);
     try:
-        print "ble thread started"
+        print("ble thread started")
         scanner = Scanner();
         scanner.enable(OPTION_DEV_HCI)
         scanner.start();
     except Exception as inst:
-        print type(inst);
-        print inst.args;
-        print inst;
-        print "error accessing bluetooth device..."
+        print(type(inst));
+        print(inst.args);
+        print(inst);
+        print("error accessing bluetooth device...")
         sys.exit(1)
     count=0;
     while count < OPTION_NUM_BEACON || OPTION_NUM_BEACON == 0:
@@ -320,15 +318,15 @@ def main():
                 print(beacon);
                 count+=1;
         except KeyboardInterrupt:
-            print "TERMINANDO POR EL TECLADO";
+            print("TERMINANDO POR EL TECLADO");
             scanner.stop();
             raise
         except Exception as inst:
             scanner.stop();
-            print inst;
+            print(inst);
             print("TERMINANDO POR OTRO ERROR")
             sys.exit(1);
-    print "done";
+    print("done");
     scanner.stop();
 
 
