@@ -9,8 +9,17 @@ import uuid
 import threading
 import subprocess
 import time
+import bluetooth._bluetooth as bluez
 
 __version__ = '1.0'
+
+
+
+LE_META_EVENT = 0x3e
+OGF_LE_CTL=0x08
+OCF_LE_SET_SCAN_ENABLE=0x000C
+EVT_LE_CONN_COMPLETE=0x01
+EVT_LE_ADVERTISING_REPORT=0x02
 
 class Beacon:
     minor = 0
@@ -19,22 +28,40 @@ class Beacon:
     txPower = 0
     rssi  = 0
     macAddress=""
-    tipo=None
 
-    def __init__(self,pkt,tipo="BEACON"):
-        tam=len(pkt);
-        self.minor=int("{0}{1}".format(pkt[tam-4],pkt[tam-3]), 16);
-        self.major=int("{0}{1}".format(pkt[tam-6],pkt[tam-5]), 16);
-        if tipo=="BEACON":
-            self.txPower=int("{0}".format(pkt[tam-2]), 16)-256;
-        else :
-            self.txPower=-73;
-        self.rssi=int("{0}".format(pkt[tam-1]), 16)-256;
-        self.UUID=parse_uuid(pkt);
-        self.macAddress=parse_mac(pkt);
-        self.tipo=tipo;
+    def __init__(self,pkt):
+        report_pkt_offset = 0
+        l=len(pkt)
+        self.rssi, = struct.unpack("b", pkt[l-1:l])
+        self.txPower, = struct.unpack("b", pkt[l-2:l-1])
+        self.macAddress = self.__packed_bdaddr_to_string(pkt[report_pkt_offset + 3:report_pkt_offset + 9]).upper()
+        self.UUID = str(uuid.UUID(self.__returnstringpacket(pkt[report_pkt_offset -22: report_pkt_offset - 6]) ) ) .upper()
+        self.major= self.__returnnumberpacket(pkt[report_pkt_offset -6: report_pkt_offset - 4])
+        self.minor= self.__returnnumberpacket(pkt[report_pkt_offset -4: report_pkt_offset - 2]) 
 
-    def distancia(self) :
+
+    def __packed_bdaddr_to_string(self,bdaddr_packed):
+        return ':'.join('%02x'%i for i in struct.unpack("<BBBBBB", bdaddr_packed[::-1]))
+
+    def __returnstringpacket(self,pkt):
+        myString = "";
+        i=0;
+        for c in pkt:
+            myString +=  "%02x" %struct.unpack("B",pkt[i:i+1])[0]
+            i+=1
+        return myString
+
+    def __returnnumberpacket(self,pkt):
+        myInteger = 0
+        multiple = 256
+        i=0;
+        for c in pkt:
+            myInteger +=  struct.unpack("B",pkt[i:i+1])[0] * multiple
+            i+=1;
+            multiple = 1
+        return myInteger 
+
+    def distancia(self):
         if self.rssi == 0 :
             return -1.0;
         if self.txPower == 0 :
@@ -42,6 +69,7 @@ class Beacon:
         else:
             ratio=self.rssi*1.0/self.txPower;
             if ratio < 1.0:
+                #print ratio
                 return ratio ** 10;
             else:
                 acc =(0.89976) *( ratio ** 7.7095 )+0.111;
@@ -49,10 +77,44 @@ class Beacon:
 
 
     def toString(self):
-        return "{7}:: MAC: {0} UUID: {1} MAJOR: {2} MINOR: {3} TXPOWER: {4} RSSI: {5} DISTANCIA: {6}".format(self.macAddress,self.UUID,self.major,self.minor,self.txPower,self.rssi,self.distancia(),self.tipo)
-
+        return "MAC: {0} UUID: {1} MAJOR: {2}\t MINOR: {3}\t TXPOWER: {4}\t RSSI: {5}\t DISTANCIA: {6}".format(self.macAddress,self.UUID,self.major,self.minor,self.txPower,self.rssi,self.distancia())
+    
     def __str__(self):
         return self.toString();
+
+
+def getBLESocket(devID):
+    return bluez.hci_open_dev(devID)
+
+def returnstringpacket(pkt):
+    myString = "";
+    for i in range(len(pkt)):
+        myString += "%02x" %struct.unpack("B",pkt[i:i+1])[0]
+    return myString
+
+def get_packed_bdaddr(bdaddr_string):
+    packable_addr = []
+    addr = bdaddr_string.split(':')
+    addr.reverse()
+    for b in addr:
+        packable_addr.append(int(b, 16))
+    return struct.pack("<BBBBBB", *packable_addr)
+
+def packed_bdaddr_to_string(bdaddr_packed):
+    return ':'.join('%02x'%i for i in struct.unpack("<BBBBBB", bdaddr_packed[::-1]))
+
+def hci_enable_le_scan(sock):
+    hci_toggle_le_scan(sock, 0x01)
+
+def hci_disable_le_scan(sock):
+    hci_toggle_le_scan(sock, 0x00)
+
+def hci_toggle_le_scan(sock, enable):
+    cmd_pkt = struct.pack("<BB", enable, 0x00)
+    bluez.hci_send_cmd(sock, OGF_LE_CTL, OCF_LE_SET_SCAN_ENABLE, cmd_pkt)
+
+def hci_le_set_scan_parameters(sock):
+    old_filter = sock.getsockopt( bluez.SOL_HCI, bluez.HCI_FILTER, 14)
 
 
 
@@ -67,23 +129,19 @@ class Scanner:
 
 
     def start(self):
-        os.system("hcitool lescan --duplicates 1>/dev/null &");
-        self.scanner=pexpect.spawn("hcidump --raw");
         t = threading.Thread(target=worker_scan, args=(self, ))
         self.isScanning=True;
         t.start();
 
     def enable(self,hci):
         self._hci=hci;
-        if "raspberry" in os.popen("uname -a").readlines()[0]:
-            pass;
-        else :  
-            pass;
-        os.system("rfkill unblock bluetooth");
-        os.system("hciconfig {0} up".format(hci))
+        self.sock = bluez.hci_open_dev(hci)
+        hci_le_set_scan_parameters(self.sock);
+        hci_toggle_le_scan(self.sock, True);
+        #hci_enable_le_scan(self.sock)
 
     def disable(self):
-        os.system("hciconfig {0} down".format(self._hci))
+        hci_disable_le_scan(self.sock);
 
 
     def nextBeacon(self):
@@ -97,40 +155,53 @@ class Scanner:
     def stop(self):
         self.isScanning=False;
 
+    def parse_events(self,loop_count=100):
+        old_filter = self.sock.getsockopt( bluez.SOL_HCI, bluez.HCI_FILTER, 14)
+        flt = bluez.hci_filter_new()
+        bluez.hci_filter_all_events(flt)
+        bluez.hci_filter_set_ptype(flt, bluez.HCI_EVENT_PKT)
+        self.sock.setsockopt( bluez.SOL_HCI, bluez.HCI_FILTER, flt )
+        done = False
+        results = []
+        myFullList = []
+        for i in range(0, loop_count):
+            pkt = self.sock.recv(255)
+            ptype, event, plen = struct.unpack("BBB", pkt[:3])
+            #print "--------------" 
+            if event == bluez.EVT_INQUIRY_RESULT_WITH_RSSI:
+                i =0
+            elif event == bluez.EVT_NUM_COMP_PKTS:
+                i =0 
+            elif event == bluez.EVT_DISCONN_COMPLETE:
+                i =0 
+            elif event == LE_META_EVENT:
+                subevent, = struct.unpack("B", pkt[3:4])
+                pkt = pkt[4:]
+                if subevent == EVT_LE_CONN_COMPLETE:
+                    le_handle_connection_complete(pkt)
+                elif subevent == EVT_LE_ADVERTISING_REPORT:
+                    num_reports = struct.unpack("B", pkt[0:1])[0]
+                    report_pkt_offset = 0
+                    for i in range(0, num_reports):
+                        try :
+                            b=Beacon(pkt)
+                            myFullList.append(b)
+                        except:
+                            pass;
+                    done = True
+        self.sock.setsockopt( bluez.SOL_HCI, bluez.HCI_FILTER, old_filter )
+        return myFullList
 
 def worker_scan(scan):
-    print "iniciando scan"
     try:
         frame=[];
         while scan.isScanning:
-                line=scan.scanner.readline();
-                if ">" in line: #es el inicio de un frame de beacon.
-                        if len(frame)!=0 :
-                                b=None;
-                                try : 
-                                    if isBeacon(frame):
-                                        b=Beacon(frame);
-                                    if b != None:
-                                        if "007874ed-6da7-9862" in b.UUID:
-                                            b.tipo="VIRTUAL";
-                                        if "12:3B:6A" in b.macAddress:
-                                            b.tipo="PULSERA";
-                                    	if(len(scan.beacons)>=30):
-                                        		scan.beacons.insert(len(scan.beacons),b);
-                                    	else:
-                                        		scan.beacons.append(b);
-                                except :
-                                    pass;
-                                frame=[];
-                        frame =line.replace(">","").replace("\n","").replace("\r","").replace("  "," ").split(" ");
-                        frame.pop(0);
-                        frame.pop(len(frame)-1);
-                else: 
-                        if len(frame)!=0 :
-                                other=line.replace("\n","").replace("\r","").replace("  "," ").split(" ");
-                                other.pop(0);
-                                other.pop(len(other)-1);
-                                frame=frame+other;
+                returnedList = scan.parse_events(1);
+                for beacon in returnedList:
+                	if(len(scan.beacons)>=30):
+                    		scan.beacons.insert(len(scan.beacons),beacon);
+                	else:
+                    		scan.beacons.append(beacon);
         scan.disable();
         return None;
     except pexpect.TIMEOUT as timeout:
@@ -167,10 +238,14 @@ def parse_mac(pkt):
 
 def isBeacon(frame):
     try:
-        #return (frame[21]=="02" and frame[22]=="15" ) or (frame[18]=="02" and frame[19]=="15" );
-	return  (frame[21]=="02" and frame[22]=="15" );
+        return (frame[21]=="02" and frame[22]=="15" ) or (frame[18]=="02" and frame[19]=="15" );
+	    #return  (frame[21]=="02" and frame[22]=="15" );
     except:
         return False;
+
+
+
+
 
 def quit(s, code=0):
     if s is not None:
@@ -183,24 +258,53 @@ Usage: beacon method [OPTIONS]
        httpstat scan | start
        httpstat version
 Options:
-  OPTIONS  any curl supported options, except for -w -D -o -S -s,
-                which are already used internally.
+  OPTIONS which are already used internally.
   -h --help     show this screen.
+  -H --hci      set hci dev
+  -n --count    number of beacons in scanner
   --version     show version.
 """[1:-1]
     print(help)
 
 
+OPTION_DEV_HCI=0;
+OPTION_NUM_BEACON=0;
+
+
 
 def main():
+    global DEBUG
+    global OPTION_DEV_HCI
+    global OPTION_NUM_BEACON
     args = sys.argv[1:]
     if not args:
         print_help()
-        quit(None, 0)
+        quit(None, 0);
+    try:
+        arg = 0
+        while arg < len(args):
+            opt=args[arg]
+            if opt in ("-h", "--help"):
+                print_help()
+                quit(None, 0);
+            elif opt == '-d':
+                DEBUG = True;
+            elif opt in ("-H", "--hci"):
+                OPTION_DEV_HCI = int(args[arg+1]);
+            elif opt in ("-n", "--count"):
+                OPTION_NUM_BEACON = int(args[arg+1]);
+            arg += 1
+    except Exception as inst:          
+        #print_help()
+        print type(inst);
+        print inst.args;
+        print inst;
+        print "error parse argumends"
+        quit(None, 2);
     try:
         print "ble thread started"
         scanner = Scanner();
-        scanner.enable("hci0")
+        scanner.enable(OPTION_DEV_HCI)
         scanner.start();
     except Exception as inst:
         print type(inst);
@@ -208,25 +312,25 @@ def main():
         print inst;
         print "error accessing bluetooth device..."
         sys.exit(1)
-    corriendo=True;
-    while corriendo:
+    count=0;
+    while count < OPTION_NUM_BEACON || OPTION_NUM_BEACON == 0:
         try :
             beacon=scanner.nextBeacon();
             if beacon is not None:
-                print("DETECTADO {0} \t {1} \t {2} ".format(beacon.minor,beacon.major,beacon.macAddress.lower()))
+                print(beacon);
+                count+=1;
         except KeyboardInterrupt:
-            corriendo=False;
             print "TERMINANDO POR EL TECLADO";
             scanner.stop();
             raise
         except Exception as inst:
-            corriendo=False;
             scanner.stop();
             print inst;
             print("TERMINANDO POR OTRO ERROR")
             sys.exit(1);
-    print "Parando ciclo principal";
+    print "done";
     scanner.stop();
+
 
 
 

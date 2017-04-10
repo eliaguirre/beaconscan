@@ -35,7 +35,7 @@ setup(
     long_description=get_long_description(),
     py_modules=[package_name],
     install_requires=[
-          'markdown',
+          'pexpect','pybluez'
       ],
     entry_points={
         'console_scripts': [
