@@ -34,12 +34,13 @@ setup(
     url='https://github.com/gatoDev/beaconscan',
     long_description=get_long_description(),
     py_modules=[package_name],
-    packages=['pexpect'],
+    install_requires=[
+          'markdown',
+      ],
     entry_points={
         'console_scripts': [
             'beacon = beacon:main'
         ]
     },
-    dependency_links=['https://github.com/pexpect/pexpect/tree/4.2.1'],
     license='License :: OSI Approved :: MIT License',
 )
