@@ -311,7 +311,7 @@ def main():
         print("error accessing bluetooth device...")
         sys.exit(1)
     count=0;
-    while count < OPTION_NUM_BEACON || OPTION_NUM_BEACON == 0:
+    while count < OPTION_NUM_BEACON or OPTION_NUM_BEACON == 0:
         try :
             beacon=scanner.nextBeacon();
             if beacon is not None:
