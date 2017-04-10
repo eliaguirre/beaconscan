@@ -39,8 +39,6 @@ setup(
             'beacon = beacon:main'
         ]
     },
-    install_requires=[
-          'pexpect',
-      ],
+    dependency_links=['https://github.com/pexpect/pexpect/tree/4.2.1'],
     license='License :: OSI Approved :: MIT License',
 )
