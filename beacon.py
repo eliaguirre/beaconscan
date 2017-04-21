@@ -236,7 +236,7 @@ def parse_mac(pkt):
 
 def isBeacon(frame):
     try:
-        return (frame[21]=="02" and frame[22]=="15" ) or (frame[18]=="02" and frame[19]=="15" );
+        return ((ord(frame[17]))==0x2 and (ord(frame[18]))==0x15 ) or ((ord(frame[14]))==0x2 and (ord(frame[15]))==0x15 );
 	    #return  (frame[21]=="02" and frame[22]=="15" );
     except:
         return False;
