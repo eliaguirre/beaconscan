@@ -182,8 +182,9 @@ class Scanner:
                     report_pkt_offset = 0
                     for i in range(0, num_reports):
                         try :
-                            b=Beacon(pkt)
-                            myFullList.append(b)
+                            if isBeacon(pkt):
+                                b=Beacon(pkt)
+                                myFullList.append(b)
                         except:
                             pass;
                     done = True
@@ -267,6 +268,7 @@ Options:
 
 OPTION_DEV_HCI=0;
 OPTION_NUM_BEACON=0;
+OPTION_MAX_DISTANCE=None;
 
 
 
@@ -274,6 +276,7 @@ def main():
     global DEBUG
     global OPTION_DEV_HCI
     global OPTION_NUM_BEACON
+    global OPTION_MAX_DISTANCE
     args = sys.argv[1:]
     if not args:
         print_help()
@@ -291,6 +294,8 @@ def main():
                 OPTION_DEV_HCI = int(args[arg+1]);
             elif opt in ("-n", "--count"):
                 OPTION_NUM_BEACON = int(args[arg+1]);
+            elif opt in ("-D", "--distance"):
+                OPTION_MAX_DISTANCE = float(args[arg+1]);
             arg += 1
     except Exception as inst:          
         #print_help()
@@ -315,8 +320,15 @@ def main():
         try :
             beacon=scanner.nextBeacon();
             if beacon is not None:
-                print(beacon);
-                count+=1;
+                if(OPTION_MAX_DISTANCE is not None):
+                    if( beacon.distancia() <= OPTION_MAX_DISTANCE ):
+                        print(beacon);
+                        count+=1;
+                else :
+                    print(beacon);
+                    count+=1;
+            else:
+                time.sleep(0.2);
         except KeyboardInterrupt:
             print("TERMINANDO POR EL TECLADO");
             scanner.stop();
