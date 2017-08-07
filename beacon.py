@@ -253,14 +253,14 @@ def quit(s, code=0):
 
 def print_help():
     help = """
-Usage: beacon method [OPTIONS]
-       httpstat scan | start
-       httpstat version
+Usage: beacon [OPTIONS]
+       beacon version
 Options:
   OPTIONS which are already used internally.
   -h --help     show this screen.
   -H --hci      set hci dev
   -n --count    number of beacons in scanner
+  -D --distance filter by distance
   --version     show version.
 """[1:-1]
     print(help)
