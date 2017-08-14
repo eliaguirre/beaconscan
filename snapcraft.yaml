@@ -13,6 +13,6 @@ apps:
 parts:
   beaconscan:
     # See 'snapcraft plugins'
-    source: https://github.com/gatoDev/beaconscan.git
+    source: https://github.com/eliaguirre/beaconscan.git
     source-tag: v0.3
     plugin: python
